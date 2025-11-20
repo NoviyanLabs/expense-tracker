@@ -1,0 +1,12 @@
+app :
+  name  : expense-tracker
+  port  : 8080
+  debug : true
+
+database : 
+  host      : localhost
+  port      : 5432
+  user      : admin
+  password  : admin
+  name      : expense_tracker
+  sslmode   : disable
