@@ -1,6 +1,8 @@
 package database
 
 import (
+	"expense-tracker/infrastructure/loader"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -12,7 +14,7 @@ import (
 
 var DB *gorm.DB
 
-func Connect() {
+func Connect(cfg *loader.Config) *gorm.DB {
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
         logger.Config{
@@ -22,8 +24,7 @@ func Connect() {
         },
 	)
 
-	database := "host=localhost user=admin password=admin dbname=expense_tracker port=5432"
-
+	database := BuildPostgresDSN(cfg)
 	db, err := gorm.Open(postgres.Open(database), &gorm.Config{
 		Logger : newLogger,
 	})
@@ -33,5 +34,18 @@ func Connect() {
 	}
 
 	DB = db
-	
+	return db	
+}
+
+func BuildPostgresDSN(cfg *loader.Config) string {
+	db := cfg.Database
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		db.Host,
+		db.Port,
+		db.Username,
+		db.Password,
+		db.DatabaseName,
+		db.SSLMode,
+	)
 }

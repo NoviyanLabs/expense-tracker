@@ -2,10 +2,17 @@ package app
 
 import (
 	"expense-tracker/infrastructure"
+	"expense-tracker/internal/router"
+	"fmt"
+
+	"github.com/gin-gonic/gin"
 )
 
 func Run() {
-	infrastructure.Initialize()
+	db, port := infrastructure.Initialize()
 
-	// r.Run(":8080")
+	fmt.Print(port)
+	r := gin.Default()
+	router.RegisterRoute(r, db)
+	r.Run(":"+port)
 }
