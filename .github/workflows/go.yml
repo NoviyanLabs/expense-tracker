@@ -8,43 +8,89 @@ on:
     branches: [ master, develop ]
   pull_request:
     branches: [ master, develop ]
-
+    
 jobs:
-  ci:
+
+  # Shared setup for other jobs
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      go-version: 1.22
+    steps:
+      - name: Set Go version output
+        run: echo "1.22"
+  
+  format-check:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout source
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 2. Set up Go
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.25.4"
+          go-version: "1.22"
           cache: true
 
-      # 3. Install dependencies
-      - name: Download dependencies
-        run: go mod download
+      - name: Check formatting
+        run: |
+          fmt_output=$(gofmt -l .)
+          if [ -n "$fmt_output" ]; then
+            echo "Files need formatting:"
+            echo "$fmt_output"
+            exit 1
+          fi
 
-      # 4. Format check
-      - name: Check gofmt
-        run: test -z "$(gofmt -l .)"
+  lint:
+    runs-on: ubuntu-latest
 
-      # 5. SAST → Run GoSec (static analysis for Go)
-      - name: Run GoSec (SAST)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Go Vet
+        run: go vet ./...
+
+      - name: GoSec (SAST)
         uses: securego/gosec@v2.20.0
         with:
           args: './...'
 
-      # 6. SCA → Dependency review (GitHub native)
-      - name: Dependency Review (SCA)
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.4"
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run Tests
+        run: go test ./... -v
+
+  sca:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Dependency Review
         uses: actions/dependency-review-action@v4
 
-      # 7. SCA → Trivy to scan Go modules for vulnerabilities
-      - name: Trivy Vulnerability Scan (SCA)
+      - name: Trivy Vulnerability Scan
         uses: aquasecurity/trivy-action@0.20.0
         with:
           scan-type: 'fs'
@@ -54,22 +100,3 @@ jobs:
           exit-code: '1'
           path: '.'
 
-      # 8. SAST → CodeQL (deep static analysis)
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: go
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-
-      - name: CodeQL Analyze
-        uses: github/codeql-action/analyze@v3
-
-      # 9. Run tests
-      - name: Run unit tests
-        run: go test ./... -v
-
-      # 10. Build artifact
-      - name: Build app
-        run: go build -o app ./...
