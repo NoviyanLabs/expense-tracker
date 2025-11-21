@@ -1,32 +1,46 @@
-name: Deploy to GCP VM
+name: Deploy Go App
+
 on:
   push:
-    branches:
-      - master
+    branches: [master]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Set up SSH key
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.VM_SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.VM_HOST }} >> ~/.ssh/known_hosts
-
-    - name: Deploy to VM
-      run: |
-        ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} "mkdir -p ~/app"
-        rsync -avz --delete ./ ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }}:~/app/
-        ssh ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} "
-          cd ~/app &&
-          # build & restart app (contoh Go)
-          go build -o myapp ./ && 
-          pkill -f myapp || true &&
-          nohup ./myapp > app.log 2>&1 &
-        "
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'  # sesuaikan dengan versi Go Anda
+      
+      - name: Build Go Binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o app-binary main.go
+      
+      - name: Auth GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCA_KEY }}
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Upload Binary to GCE
+        run: |
+          gcloud compute scp app-binary ${{ secrets.GCE_INSTANCE }}:~/app/ \
+            --zone=${{ secrets.GCE_INSTANCE_ZONE }} \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+      
+      - name: Deploy and Restart Service
+        run: |
+          gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
+            --zone=${{ secrets.GCE_INSTANCE_ZONE }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --command="
+              chmod +x ~/app/app-binary &&
+              sudo systemctl restart myapp
+            "
