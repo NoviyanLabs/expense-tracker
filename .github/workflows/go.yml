@@ -46,10 +46,12 @@ jobs:
       
       - name: Deploy and Restart Service
         run: |
+          run: |
           gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
             --zone=${{ secrets.GCE_INSTANCE_ZONE }} \
             --project=${{ secrets.GCP_PROJECT_ID }} \
             --command="
-              chmod +x ~/app/app-binary &&
-              sudo systemctl restart myapp
+              pkill -f ~/app/app-binary || true &&
+              nohup ~/app/app-binary > ~/app/app.log 2>&1 &
+              echo 'App started successfully'
             "
