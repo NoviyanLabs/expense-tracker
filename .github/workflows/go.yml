@@ -1,28 +1,75 @@
 # This workflow will build a golang project
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
 
-name: Go
+name: Expense-Tracker Test
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ main, develop ]
 
 jobs:
-
-  build:
+  ci:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
+      # 1. Checkout source
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.25.4'
+      # 2. Set up Go
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.4"
+          cache: true
 
-    - name: Build
-      run: go build -v ./...
+      # 3. Install dependencies
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Test
-      run: go test -v ./...
+      # 4. Format check
+      - name: Check gofmt
+        run: test -z "$(gofmt -l .)"
+
+      # 5. SAST → Run GoSec (static analysis for Go)
+      - name: Run GoSec (SAST)
+        uses: securego/gosec@v2.20.0
+        with:
+          args: './...'
+
+      # 6. SCA → Dependency review (GitHub native)
+      - name: Dependency Review (SCA)
+        uses: actions/dependency-review-action@v4
+
+      # 7. SCA → Trivy to scan Go modules for vulnerabilities
+      - name: Trivy Vulnerability Scan (SCA)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: 'fs'
+          scanners: 'vuln'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
+          path: '.'
+
+      # 8. SAST → CodeQL (deep static analysis)
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: CodeQL Analyze
+        uses: github/codeql-action/analyze@v3
+
+      # 9. Run tests
+      - name: Run unit tests
+        run: go test ./... -v
+
+      # 10. Build artifact
+      - name: Build app
+        run: go build -o app ./...
