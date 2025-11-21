@@ -15,7 +15,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'  # sesuaikan dengan versi Go Anda
+          go-version: '1.21'
       
       - name: Build Go Binary
         run: |
@@ -28,10 +28,19 @@ jobs:
       
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v1
-      
+
+      # 🔥 Step baru: create folder di VM kalau belum ada
+      - name: Prepare directory on VM
+        run: |
+          gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
+            --zone=${{ secrets.GCE_INSTANCE_ZONE }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --command="mkdir -p ~/app"
+
       - name: Upload Binary to GCE
         run: |
-          gcloud compute scp app-binary ${{ secrets.GCE_INSTANCE }}:~/app/ \
+          gcloud compute scp app-binary \
+            ${{ secrets.GCE_INSTANCE }}:~/app/app-binary \
             --zone=${{ secrets.GCE_INSTANCE_ZONE }} \
             --project=${{ secrets.GCP_PROJECT_ID }}
       
